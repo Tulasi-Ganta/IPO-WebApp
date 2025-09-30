@@ -324,63 +324,9 @@ fetchIPOs();
 </body>
 </html> -->
 
-
-
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IPO Dashboard</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .ipo-card { border: 1px solid #ccc; padding: 15px; margin: 10px; border-radius: 8px; }
-    .badge { padding: 4px 8px; border-radius: 4px; color: white; font-size: 12px; }
-    .upcoming { background: orange; }
-    .ongoing { background: green; }
-    .listed { background: blue; }
-    .closed { background: gray; }
-  </style>
-</head>
-<body>
-  <h1>IPO Dashboard</h1>
   
-  <div class="export-buttons" style="text-align:center; margin-bottom:20px;">
-      <a href="{% url 'export_csv' %}">Download CSV</a> |
-      <a href="{% url 'export_excel' %}">Download Excel</a>
-  </div>
-
-  <div style="margin-bottom:10px;">
-    <label for="statusFilter">Filter by Status:</label>
-    <select id="statusFilter">
-      <option value="">All</option>
-      <option value="upcoming">Upcoming</option>
-      <option value="ongoing">Ongoing</option>
-      <option value="listed">Listed</option>
-      <option value="closed">Closed</option>
-    </select>
-
-    <label for="sortFilter">Sort by:</label>
-    <select id="sortFilter">
-      <option value="">None</option>
-      <option value="open_date">Open Date</option>
-      <option value="listing_gain">Listing Gain</option>
-      <option value="current_return">Current Return</option>
-    </select>
-
-    <input type="text" id="searchBox" placeholder="Search by company name">
-  </div>
-
-  <div id="ipoList"></div>
-
-  <div style="margin-top:10px;">
-    <button onclick="prevPage()">Previous</button>
-    <span id="pageInfo"></span>
-    <button onclick="nextPage()">Next</button>
-  </div>
-
-  <script>
+  
+  <!-- <script>
     let ipoData = [];
     let currentPage = 1;
     const itemsPerPage = 2;
@@ -510,6 +456,169 @@ fetchIPOs();
     document.getElementById("sortFilter").addEventListener("change", () => { currentPage = 1; applyFilters(); });
     document.getElementById("searchBox").addEventListener("input", () => { currentPage = 1; applyFilters(); });
 
+    fetchIPOs();
+  </script> -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IPO Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .ipo-card { border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 8px; }
+    .badge { padding: 4px 8px; border-radius: 4px; color: white; font-size: 12px; }
+    .upcoming { background: orange; }
+    .ongoing { background: green; }
+    .listed { background: blue; }
+    .closed { background: gray; }
+    .export-buttons { text-align: center; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <h1>IPO Dashboard</h1>
+
+  <div class="export-buttons">
+      <a href="{% url 'export_csv' %}">Download CSV</a> |
+      <a href="{% url 'export_excel' %}">Download Excel</a>
+  </div>
+
+  <div style="margin-bottom:10px;">
+    <label for="statusFilter">Filter by Status:</label>
+    <select id="statusFilter">
+      <option value="">All</option>
+      <option value="upcoming">Upcoming</option>
+      <option value="ongoing">Ongoing</option>
+      <option value="listed">Listed</option>
+      <option value="closed">Closed</option>
+    </select>
+
+    <label for="sortFilter">Sort by:</label>
+    <select id="sortFilter">
+      <option value="">None</option>
+      <option value="open_date">Open Date</option>
+      <option value="listing_gain">Listing Gain</option>
+      <option value="current_return">Current Return</option>
+    </select>
+
+    <input type="text" id="searchBox" placeholder="Search by company name">
+  </div>
+
+  <div id="ipoList"></div>
+
+  <div style="margin-top:10px;">
+    <button id="prevBtn">Previous</button>
+    <span id="pageInfo"></span>
+    <button id="nextBtn">Next</button>
+  </div>
+
+  <script>
+    let currentPage = 1;
+    const itemsPerPage = 5; // server-side page size
+    let totalPages = 1;
+
+    async function fetchIPOs() {
+        const status = document.getElementById("statusFilter").value;
+        const search = document.getElementById("searchBox").value.trim();
+        const sort = document.getElementById("sortFilter").value;
+
+        const orderingMap = {
+            'open_date': 'open_date',
+            'listing_gain': 'listing_price', // approximate backend ordering
+            'current_return': 'current_market_price'
+        };
+        const ordering = orderingMap[sort] || '';
+
+        let url = `/api/ipo/?page=${currentPage}&page_size=${itemsPerPage}`;
+        if (status) url += `&status=${status}`;
+        //if (search) url += `&company_name=${search}`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+
+        if (ordering) url += `&ordering=${ordering}`;
+
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            totalPages = Math.ceil(data.count / itemsPerPage);
+            renderIPOs(data.results);
+            document.getElementById("pageInfo").innerText = `Page ${currentPage} of ${totalPages}`;
+        } catch (err) {
+            console.error("Error fetching IPO data:", err);
+            document.getElementById("ipoList").innerHTML = "<p style='color:red;'>Failed to load IPO data.</p>";
+        }
+    }
+
+    function renderIPOs(ipos) {
+        const ipoList = document.getElementById("ipoList");
+        ipoList.innerHTML = "";
+
+        if (!ipos || ipos.length === 0) {
+            ipoList.innerHTML = "<p>No IPOs found.</p>";
+            return;
+        }
+
+        ipos.forEach(ipo => {
+            const ipoCard = document.createElement("div");
+            ipoCard.className = "ipo-card";
+
+            const listingGain = (ipo.listing_price && ipo.ipo_price)
+                ? (ipo.listing_price - ipo.ipo_price).toFixed(2)
+                : "-";
+            const currentReturn = (ipo.current_market_price && ipo.ipo_price)
+                ? (ipo.current_market_price - ipo.ipo_price).toFixed(2)
+                : "-";
+
+            let countdown = "";
+            const today = new Date();
+            if (ipo.status === "upcoming" && ipo.open_date) {
+                const openDate = new Date(ipo.open_date);
+                const diffDays = Math.ceil((openDate - today) / (1000 * 60 * 60 * 24));
+                countdown = diffDays > 0 ? `Opens in ${diffDays} days` : "Opening today!";
+            }
+            if (ipo.status === "ongoing" && ipo.close_date) {
+                const closeDate = new Date(ipo.close_date);
+                const diffDays = Math.ceil((closeDate - today) / (1000 * 60 * 60 * 24));
+                countdown = diffDays > 0 ? `Closes in ${diffDays} days` : "Closing today!";
+            }
+
+            ipoCard.innerHTML = `
+                <h3>${ipo.company_name} <span class="badge ${ipo.status}">${ipo.status}</span></h3>
+                <p><b>Price Band:</b> ${ipo.price_band}</p>
+                <p><b>Open Date:</b> ${ipo.open_date}</p>
+                <p><b>Close Date:</b> ${ipo.close_date}</p>
+                <p><b>Issue Size:</b> ${ipo.issue_size}</p>
+                <p><b>Type:</b> ${ipo.issue_type}</p>
+                <p><b>IPO Price:</b> ${ipo.ipo_price || "-"}</p>
+                <p><b>Listing Price:</b> ${ipo.listing_price || "-"}</p>
+                <p><b>Current Market Price:</b> ${ipo.current_market_price || "-"}</p>
+                <p><b>Listing Gain:</b> ${listingGain}</p>
+                <p><b>Current Return:</b> ${currentReturn}</p>
+                <p style="color:red;"><b>${countdown}</b></p>
+            `;
+            ipoList.appendChild(ipoCard);
+        });
+    }
+
+    document.getElementById("prevBtn").addEventListener("click", () => {
+        if (currentPage > 1) {
+            currentPage--;
+            fetchIPOs();
+        }
+    });
+
+    document.getElementById("nextBtn").addEventListener("click", () => {
+        if (currentPage < totalPages) {
+            currentPage++;
+            fetchIPOs();
+        }
+    });
+
+    document.getElementById("statusFilter").addEventListener("change", () => { currentPage = 1; fetchIPOs(); });
+    document.getElementById("sortFilter").addEventListener("change", () => { currentPage = 1; fetchIPOs(); });
+    document.getElementById("searchBox").addEventListener("input", () => { currentPage = 1; fetchIPOs(); });
+
+    // Initial load
     fetchIPOs();
   </script>
 </body>
