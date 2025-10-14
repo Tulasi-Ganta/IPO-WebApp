@@ -34,12 +34,29 @@
 
 
 
+# from django.contrib import admin
+# from django.urls import path, include
+# from ipo import views
+
+# urlpatterns = [
+#     path('admin/', admin.site.urls),
+#     path('api/ipo/', include('ipo.urls')),  # API & export
+#     path('', views.dashboard, name='home'),  # dashboard page
+# ]
+
+
+
+
 from django.contrib import admin
 from django.urls import path, include
 from ipo import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/ipo/', include('ipo.urls')),  # API & export
-    path('', views.dashboard, name='home'),  # dashboard page
+
+    # Include ipo.urls directly (no extra prefix)
+    path('', include('ipo.urls')),
+
+    # Home/dashboard page
+    path('', views.dashboard, name='home'),
 ]

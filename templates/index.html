@@ -458,7 +458,7 @@ fetchIPOs();
 
     fetchIPOs();
   </script> -->
-
+<!-- 
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -619,6 +619,254 @@ fetchIPOs();
     document.getElementById("searchBox").addEventListener("input", () => { currentPage = 1; fetchIPOs(); });
 
     // Initial load
+    fetchIPOs();
+  </script>
+</body>
+</html> -->
+
+
+
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IPO Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f8fafc;
+      color: #111;
+      padding: 30px;
+      transition: all 0.3s ease;
+    }
+    .card {
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: all 0.3s ease;
+    }
+    .card:hover { transform: translateY(-3px); }
+    .badge { text-transform: capitalize; font-size: 0.85rem; }
+    .upcoming { background-color: #0d6efd; }
+    .ongoing { background-color: #198754; }
+    .listed { background-color: #6c757d; }
+    .closed { background-color: #dc3545; }
+    .export-buttons a { text-decoration: none; color: white; }
+    /* Dark mode */
+    body.dark {
+      background-color: #121212;
+      color: #f1f1f1;
+    }
+    body.dark .card {
+      background-color: #1e1e1e;
+      box-shadow: 0 0 10px rgba(255,255,255,0.1);
+    }
+    body.dark .form-control,
+    body.dark .form-select {
+      background-color: #2a2a2a;
+      color: #f1f1f1;
+      border: 1px solid #444;
+    }
+    body.dark .btn-outline-secondary {
+      color: #ddd;
+      border-color: #666;
+    }
+    body.dark .btn-outline-secondary:hover {
+      background-color: #666;
+      color: #fff;
+    }
+    .toggle-dark {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #222;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    body.dark .toggle-dark {
+      background: #f1f1f1;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+  <button id="themeToggle" class="toggle-dark" title="Toggle Dark Mode">🌙</button>
+
+  <div class="container">
+    <h2 class="text-center mb-4 fw-bold text-primary">💹 IPO Dashboard</h2>
+
+    <!-- Export Buttons -->
+    <div class="text-center mb-4">
+      <button class="btn btn-outline-primary btn-sm me-2">
+        <a href="{% url 'export_csv' %}" download>⬇️ Download CSV</a>
+      </button>
+      <button class="btn btn-outline-success btn-sm">
+        <a href="{% url 'export_excel' %}" download>⬇️ Download Excel</a>
+      </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <select id="statusFilter" class="form-select">
+          <option value="">All Statuses</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="ongoing">Ongoing</option>
+          <option value="listed">Listed</option>
+          <option value="closed">Closed</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <select id="sortFilter" class="form-select">
+          <option value="">Sort By</option>
+          <option value="open_date">Open Date</option>
+          <option value="listing_gain">Listing Gain</option>
+          <option value="current_return">Current Return</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <input type="text" id="searchBox" class="form-control" placeholder="🔍 Search by company name...">
+      </div>
+    </div>
+
+    <!-- IPO List -->
+    <div class="row" id="ipoList"></div>
+
+    <!-- Pagination -->
+    <div class="d-flex justify-content-between align-items-center mt-4">
+      <button id="prevBtn" class="btn btn-outline-secondary btn-sm">⬅️ Previous</button>
+      <span id="pageInfo" class="fw-semibold"></span>
+      <button id="nextBtn" class="btn btn-outline-secondary btn-sm">Next ➡️</button>
+    </div>
+  </div>
+
+  <script>
+    let currentPage = 1;
+    const itemsPerPage = 5;
+    let totalPages = 1;
+
+    async function fetchIPOs() {
+      const status = document.getElementById("statusFilter").value;
+      const search = document.getElementById("searchBox").value.trim();
+      const sort = document.getElementById("sortFilter").value;
+
+      const orderingMap = {
+        'open_date': 'open_date',
+        'listing_gain': 'listing_price',
+        'current_return': 'current_market_price'
+      };
+      const ordering = orderingMap[sort] || '';
+
+      let url = `/api/ipo/?page=${currentPage}&page_size=${itemsPerPage}`;
+      if (status) url += `&status=${status}`;
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+      if (ordering) url += `&ordering=${ordering}`;
+
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        totalPages = Math.ceil(data.count / itemsPerPage);
+        renderIPOs(data.results);
+        document.getElementById("pageInfo").innerText = `Page ${currentPage} of ${totalPages}`;
+      } catch (err) {
+        console.error("Error fetching IPO data:", err);
+        document.getElementById("ipoList").innerHTML = "<p class='text-danger text-center'>Failed to load IPO data.</p>";
+      }
+    }
+
+    function renderIPOs(ipos) {
+      const ipoList = document.getElementById("ipoList");
+      ipoList.innerHTML = "";
+
+      if (!ipos || ipos.length === 0) {
+        ipoList.innerHTML = "<p class='text-center text-muted'>No IPOs found.</p>";
+        return;
+      }
+
+      ipos.forEach(ipo => {
+        const listingGain = (ipo.listing_price && ipo.ipo_price)
+          ? (ipo.listing_price - ipo.ipo_price).toFixed(2)
+          : "-";
+        const currentReturn = (ipo.current_market_price && ipo.ipo_price)
+          ? (ipo.current_market_price - ipo.ipo_price).toFixed(2)
+          : "-";
+
+        let countdown = "";
+        const today = new Date();
+        if (ipo.status === "upcoming" && ipo.open_date) {
+          const openDate = new Date(ipo.open_date);
+          const diffDays = Math.ceil((openDate - today) / (1000 * 60 * 60 * 24));
+          countdown = diffDays > 0 ? `Opens in ${diffDays} days` : "Opening today!";
+        } else if (ipo.status === "ongoing" && ipo.close_date) {
+          const closeDate = new Date(ipo.close_date);
+          const diffDays = Math.ceil((closeDate - today) / (1000 * 60 * 60 * 24));
+          countdown = diffDays > 0 ? `Closes in ${diffDays} days` : "Closing today!";
+        }
+
+        ipoList.innerHTML += `
+          <div class="col-md-4 mb-4">
+            <div class="card p-3">
+              ${ipo.logo ? `<img src="${ipo.logo}" class="mb-2" style="height:50px;width:50px;object-fit:contain;">` : ''}
+              <h5>${ipo.company_name} <span class="badge ${ipo.status}">${ipo.status}</span></h5>
+              <p><b>Price Band:</b> ${ipo.price_band}</p>
+              <p><b>Open:</b> ${ipo.open_date}</p>
+              <p><b>Close:</b> ${ipo.close_date}</p>
+              <p><b>Issue Size:</b> ${ipo.issue_size}</p>
+              <p><b>Type:</b> ${ipo.issue_type}</p>
+              <p><b>IPO Price:</b> ${ipo.ipo_price || "-"}</p>
+              <p><b>Listing Price:</b> ${ipo.listing_price || "-"}</p>
+              <p><b>Current Market Price:</b> ${ipo.current_market_price || "-"}</p>
+              <p><b>Listing Gain:</b> ${listingGain}</p>
+              <p><b>Current Return:</b> ${currentReturn}</p>
+              <p class="text-danger fw-semibold">${countdown}</p>
+              ${ipo.rhp_pdf ? `<a href="${ipo.rhp_pdf}" class="btn btn-outline-primary btn-sm me-2" download>RHP</a>` : ''}
+              ${ipo.drhp_pdf ? `<a href="${ipo.drhp_pdf}" class="btn btn-outline-secondary btn-sm" download>DRHP</a>` : ''}
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    document.getElementById("prevBtn").addEventListener("click", () => {
+      if (currentPage > 1) {
+        currentPage--;
+        fetchIPOs();
+      }
+    });
+
+    document.getElementById("nextBtn").addEventListener("click", () => {
+      if (currentPage < totalPages) {
+        currentPage++;
+        fetchIPOs();
+      }
+    });
+
+    document.getElementById("statusFilter").addEventListener("change", () => { currentPage = 1; fetchIPOs(); });
+    document.getElementById("sortFilter").addEventListener("change", () => { currentPage = 1; fetchIPOs(); });
+    document.getElementById("searchBox").addEventListener("input", () => { currentPage = 1; fetchIPOs(); });
+
+    // 🌙 Toggle dark mode
+    const themeToggle = document.getElementById("themeToggle");
+    themeToggle.addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      themeToggle.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
+    });
+
     fetchIPOs();
   </script>
 </body>
