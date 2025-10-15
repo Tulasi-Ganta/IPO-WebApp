@@ -26,6 +26,7 @@
     .listed { background-color: #6c757d; }
     .closed { background-color: #dc3545; }
     .export-buttons a { text-decoration: none; color: white; }
+
     /* Dark mode */
     body.dark {
       background-color: #121212;
@@ -74,7 +75,7 @@
   <div class="container">
     <h2 class="text-center mb-4 fw-bold text-primary">💹 IPO Dashboard</h2>
 
-    <!-- Export Buttons -->
+    
     <div class="text-center mb-4">
       <button class="btn btn-outline-primary btn-sm me-2">
         <a href="{% url 'export_csv' %}" download>⬇️ Download CSV</a>
@@ -84,7 +85,7 @@
       </button>
     </div>
 
-    <!-- Filters  -->
+    
     <div class="row g-3 mb-4">
       <div class="col-md-3">
         <select id="statusFilter" class="form-select">
@@ -108,10 +109,10 @@
       </div>
     </div>
 
-    <!-- IPO List -->
+    
     <div class="row" id="ipoList"></div>
 
-    <!-- Pagination -->
+    
     <div class="d-flex justify-content-between align-items-center mt-4">
       <button id="prevBtn" class="btn btn-outline-secondary btn-sm">⬅️ Previous</button>
       <span id="pageInfo" class="fw-semibold"></span>
@@ -124,19 +125,40 @@
     const itemsPerPage = 5;
     let totalPages = 1;
 
-    const accessToken ="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzYwNDU5Nzk5LCJpYXQiOjE3NjA0NTk0OTksImp0aSI6ImRlZTE2NmZmNjBiNzQ4YTNiNDMyMzFkNzNkMmMzM2JiIiwidXNlcl9pZCI6IjIifQ.GLGEvZI6ZV02BlY9SbbRXGRyUXnjz06fISV39ZpPPu8";
+  
+    let accessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzYwNTMwMTM3LCJpYXQiOjE3NjA1Mjk4MzcsImp0aSI6ImVmYWQ5NDhkMjc0YzQyYjFhYmMwMGIwMmFhMTg5MmE1IiwidXNlcl9pZCI6IjIifQ.-4q-FYqykQjw5LnIYcnxKogGU7YcmR6Yw-Fe_l5KFMA";
+    const refreshToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc2MDYxNjIzNywiaWF0IjoxNzYwNTI5ODM3LCJqdGkiOiJhMGIzODg5MjllMDU0ZDM3OWMxMDczMjg0MGVkYjQxMCIsInVzZXJfaWQiOiIyIn0.yVSdNwYV5Lvfsj4-E0o_Q0FdzZE-JCZIkiBC3eg7vRA";
 
+    // ♻️ Auto Refresh Token
+    async function refreshAccessToken() {
+      const res = await fetch("/api/token/refresh/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh: refreshToken }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        accessToken = data.access;
+        console.log("🔄 Token refreshed successfully");
+        return accessToken;
+      } else {
+        console.error("⚠️ Token refresh failed");
+        throw new Error("Token refresh failed");
+      }
+    }
+
+    // 🔹 Fetch IPO Data
     async function fetchIPOs() {
       const status = document.getElementById("statusFilter").value;
       const search = document.getElementById("searchBox").value.trim();
       const sort = document.getElementById("sortFilter").value;
 
       const orderingMap = {
-        'open_date': 'open_date',
-        'listing_gain': 'listing_price',
-        'current_return': 'current_market_price'
+        "open_date": "open_date",
+        "listing_gain": "listing_price",
+        "current_return": "current_market_price",
       };
-      const ordering = orderingMap[sort] || '';
+      const ordering = orderingMap[sort] || "";
 
       let url = `/api/ipo/?page=${currentPage}&page_size=${itemsPerPage}`;
       if (status) url += `&status=${status}`;
@@ -144,21 +166,38 @@
       if (ordering) url += `&ordering=${ordering}`;
 
       try {
-        const res = await fetch(url,{
+        let res = await fetch(url, {
           headers: {
-                  "Authorization": `Bearer ${accessToken}`
-          }
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
         });
+
+        // 🧩 If token expired, try refresh
+        if (res.status === 401) {
+          console.warn("⚠️ Access token expired, refreshing...");
+          await refreshAccessToken();
+          res = await fetch(url, {
+            headers: {
+              "Authorization": `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+          });
+        }
+
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         const data = await res.json();
         totalPages = Math.ceil(data.count / itemsPerPage);
         renderIPOs(data.results);
         document.getElementById("pageInfo").innerText = `Page ${currentPage} of ${totalPages}`;
       } catch (err) {
         console.error("Error fetching IPO data:", err);
-        document.getElementById("ipoList").innerHTML = "<p class='text-danger text-center'>Failed to load IPO data.</p>";
+        document.getElementById("ipoList").innerHTML =
+          "<p class='text-danger text-center'>Failed to load IPO data.</p>";
       }
     }
 
+    // 🧱 Render IPO Cards
     function renderIPOs(ipos) {
       const ipoList = document.getElementById("ipoList");
       ipoList.innerHTML = "";
@@ -212,32 +251,29 @@
       });
     }
 
+    // 🔘 Pagination and Filters
     document.getElementById("prevBtn").addEventListener("click", () => {
-      if (currentPage > 1) {
-        currentPage--;
-        fetchIPOs();
-      }
+      if (currentPage > 1) { currentPage--; fetchIPOs(); }
     });
-
     document.getElementById("nextBtn").addEventListener("click", () => {
-      if (currentPage < totalPages) {
-        currentPage++;
-        fetchIPOs();
-      }
+      if (currentPage < totalPages) { currentPage++; fetchIPOs(); }
     });
-
     document.getElementById("statusFilter").addEventListener("change", () => { currentPage = 1; fetchIPOs(); });
     document.getElementById("sortFilter").addEventListener("change", () => { currentPage = 1; fetchIPOs(); });
     document.getElementById("searchBox").addEventListener("input", () => { currentPage = 1; fetchIPOs(); });
 
-    // 🌙 Toggle dark mode
+    // 🌙 Dark mode toggle
     const themeToggle = document.getElementById("themeToggle");
     themeToggle.addEventListener("click", () => {
       document.body.classList.toggle("dark");
       themeToggle.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
     });
 
+    // 🚀 Load data
     fetchIPOs();
   </script>
+
+  
 </body>
-</html> 
+</html>
+ 
