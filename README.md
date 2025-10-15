@@ -151,6 +151,11 @@ proipo/
 └── requirements.txt       # Python dependencies
 
 
+## 📌 GitHub Repository
+You can find the full project source code here:  
+[Bluestock Fintech IPO Web App & REST API](https://github.com/Tulasi-Ganta/IPO-WebApp.git)
+
+
 📌 References
 
 Django Documentation
